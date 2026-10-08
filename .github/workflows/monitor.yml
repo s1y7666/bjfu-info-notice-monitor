@@ -1,0 +1,40 @@
+name: 学院通知监控
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'   # 每 2 小时运行一次（可自行调整）
+  workflow_dispatch:        # 支持在 GitHub 页面手动触发
+
+# 防止上一次运行未结束时下一次重叠执行
+concurrency:
+  group: notice-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: write           # 允许把更新后的状态文件提交回仓库
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 运行监控脚本
+        run: python monitor.py
+        env:
+          # 在仓库 Settings → Secrets and variables → Actions 里配置
+          SERVERCHAN_SCKEY: ${{ secrets.SERVERCHAN_SCKEY }}
+
+      - name: 提交更新后的状态文件
+        run: |
+          git config user.name "notice-monitor"
+          git config user.email "notice-monitor@users.noreply.github.com"
+          if [ -f state.json ]; then git add state.json; fi
+          if git commit -m "update monitor state"; then git push; else echo "状态无变化，无需提交"; fi
